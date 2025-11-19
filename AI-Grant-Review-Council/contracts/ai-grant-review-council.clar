@@ -334,3 +334,163 @@
         (ok true)
     )
 )
+
+;; Calculate average review score
+(define-private (calculate-average-score (proposal-id uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (if (> (get reviewer-count proposal) u0)
+            (ok (/ (get total-score proposal) (get reviewer-count proposal)))
+            (ok u0)
+        )
+    )
+)
+
+;; Check if proposal is eligible for award
+(define-private (is-eligible-for-award (proposal-id uint) (min-reviews uint) (min-avg-score uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+            (avg-score (unwrap! (calculate-average-score proposal-id) err-not-found))
+        )
+        (ok (and 
+            (>= (get reviewer-count proposal) min-reviews)
+            (>= avg-score min-avg-score)
+        ))
+    )
+)
+
+;; Read-only functions
+(define-read-only (get-proposal (proposal-id uint))
+    (map-get? proposals { proposal-id: proposal-id })
+)
+
+(define-read-only (get-review (review-id uint))
+    (map-get? reviews { review-id: review-id })
+)
+
+(define-read-only (has-reviewed (reviewer principal) (proposal-id uint))
+    (map-get? reviewer-status { reviewer: reviewer, proposal-id: proposal-id })
+)
+
+(define-read-only (get-council-member (member principal))
+    (map-get? council-members { member: member })
+)
+
+(define-read-only (get-grant-award (proposal-id uint))
+    (map-get? grant-awards { proposal-id: proposal-id })
+)
+
+(define-read-only (get-proposal-count)
+    (ok (var-get proposal-counter))
+)
+
+(define-read-only (get-grant-pool-balance)
+    (ok (var-get grant-pool))
+)
+
+(define-read-only (get-average-score (proposal-id uint))
+    (calculate-average-score proposal-id)
+)
+
+(define-read-only (get-review-count (proposal-id uint))
+    (let
+        (
+            (proposal (map-get? proposals { proposal-id: proposal-id }))
+        )
+        (match proposal
+            found (ok (get reviewer-count found))
+            (ok u0)
+        )
+    )
+)
+
+(define-read-only (get-total-score (proposal-id uint))
+    (let
+        (
+            (proposal (map-get? proposals { proposal-id: proposal-id }))
+        )
+        (match proposal
+            found (ok (get total-score found))
+            (ok u0)
+        )
+    )
+)
+
+(define-read-only (is-council-member-active (member principal))
+    (let
+        (
+            (member-data (map-get? council-members { member: member }))
+        )
+        (match member-data
+            found (ok (get active found))
+            (ok false)
+        )
+    )
+)
+
+(define-read-only (get-member-review-count (member principal))
+    (let
+        (
+            (member-data (map-get? council-members { member: member }))
+        )
+        (match member-data
+            found (ok (get reviews-completed found))
+            (ok u0)
+        )
+    )
+)
+
+(define-read-only (is-grant-disbursed (proposal-id uint))
+    (let
+        (
+            (award (map-get? grant-awards { proposal-id: proposal-id }))
+        )
+        (match award
+            found (ok (get disbursed found))
+            (ok false)
+        )
+    )
+)
+
+(define-read-only (get-proposal-status (proposal-id uint))
+    (let
+        (
+            (proposal (map-get? proposals { proposal-id: proposal-id }))
+        )
+        (match proposal
+            found (ok (get status found))
+            err-not-found
+        )
+    )
+)
+
+(define-read-only (get-proposal-applicant (proposal-id uint))
+    (let
+        (
+            (proposal (map-get? proposals { proposal-id: proposal-id }))
+        )
+        (match proposal
+            found (ok (get applicant found))
+            err-not-found
+        )
+    )
+)
+
+(define-read-only (get-ai-score (proposal-id uint))
+    (let
+        (
+            (proposal (map-get? proposals { proposal-id: proposal-id }))
+        )
+        (match proposal
+            found (ok (get ai-score found))
+            (ok u0)
+        )
+    )
+)
+
+(define-read-only (get-review-counter)
+    (ok (var-get review-counter))
+)
