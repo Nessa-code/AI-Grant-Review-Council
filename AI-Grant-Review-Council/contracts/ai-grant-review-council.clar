@@ -273,3 +273,64 @@
         (ok true)
     )
 )
+
+;; Award grant
+(define-public (award-grant (proposal-id uint) (amount uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (<= amount (var-get grant-pool)) err-insufficient-funds)
+        (map-set grant-awards
+            { proposal-id: proposal-id }
+            { awarded: true, amount: amount, disbursed: false }
+        )
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { status: "awarded" })
+        )
+        (var-set grant-pool (- (var-get grant-pool) amount))
+        (ok true)
+    )
+)
+
+;; Disburse awarded grant
+(define-public (disburse-grant (proposal-id uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+            (award (unwrap! (map-get? grant-awards { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (get awarded award) err-invalid-status)
+        (asserts! (not (get disbursed award)) err-already-submitted)
+        (map-set grant-awards
+            { proposal-id: proposal-id }
+            (merge award { disbursed: true })
+        )
+        (ok true)
+    )
+)
+
+;; Cancel grant award
+(define-public (cancel-award (proposal-id uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+            (award (unwrap! (map-get? grant-awards { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (not (get disbursed award)) err-invalid-status)
+        (var-set grant-pool (+ (var-get grant-pool) (get amount award)))
+        (map-set grant-awards
+            { proposal-id: proposal-id }
+            { awarded: false, amount: u0, disbursed: false }
+        )
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { status: "cancelled" })
+        )
+        (ok true)
+    )
+)
