@@ -53,3 +53,128 @@
     { proposal-id: uint }
     { awarded: bool, amount: uint, disbursed: bool }
 )
+
+;; Add council member
+(define-public (add-council-member (member principal))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set council-members
+            { member: member }
+            { active: true, reviews-completed: u0 }
+        )
+        (ok true)
+    )
+)
+
+;; Submit grant proposal
+(define-public (submit-proposal (title (string-ascii 100)) (category (string-ascii 50)) (amount-requested uint))
+    (let
+        (
+            (new-id (+ (var-get proposal-counter) u1))
+            (existing (map-get? proposals { proposal-id: new-id }))
+        )
+        (asserts! (is-none existing) err-already-submitted)
+        (map-set proposals
+            { proposal-id: new-id }
+            {
+                applicant: tx-sender,
+                title: title,
+                category: category,
+                amount-requested: amount-requested,
+                status: "pending",
+                ai-score: u0,
+                reviewer-count: u0,
+                total-score: u0,
+                submitted-at: stacks-block-height
+            }
+        )
+        (var-set proposal-counter new-id)
+        (ok new-id)
+    )
+)
+
+;; Submit AI assessment score
+(define-public (set-ai-score (proposal-id uint) (score uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (<= score u100) (err u105))
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { ai-score: score })
+        )
+        (ok true)
+    )
+)
+
+;; Submit review
+(define-public (submit-review (proposal-id uint) (score uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+            (member (unwrap! (map-get? council-members { member: tx-sender }) err-owner-only))
+            (new-review-id (+ (var-get review-counter) u1))
+        )
+        (asserts! (get active member) err-owner-only)
+        (asserts! (is-none (map-get? reviewer-status { reviewer: tx-sender, proposal-id: proposal-id })) err-already-submitted)
+        (asserts! (<= score u100) (err u105))
+        (map-set reviews
+            { review-id: new-review-id }
+            {
+                proposal-id: proposal-id,
+                reviewer: tx-sender,
+                score: score,
+                timestamp: stacks-block-height
+            }
+        )
+        (map-set reviewer-status
+            { reviewer: tx-sender, proposal-id: proposal-id }
+            { reviewed: true }
+        )
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal {
+                reviewer-count: (+ (get reviewer-count proposal) u1),
+                total-score: (+ (get total-score proposal) score)
+            })
+        )
+        (map-set council-members
+            { member: tx-sender }
+            (merge member { reviews-completed: (+ (get reviews-completed member) u1) })
+        )
+        (var-set review-counter new-review-id)
+        (ok new-review-id)
+    )
+)
+
+;; Deactivate council member
+(define-public (deactivate-council-member (member principal))
+    (let
+        (
+            (member-data (unwrap! (map-get? council-members { member: member }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set council-members
+            { member: member }
+            (merge member-data { active: false })
+        )
+        (ok true)
+    )
+)
+
+;; Reactivate council member
+(define-public (reactivate-council-member (member principal))
+    (let
+        (
+            (member-data (unwrap! (map-get? council-members { member: member }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set council-members
+            { member: member }
+            (merge member-data { active: true })
+        )
+        (ok true)
+    )
+)
