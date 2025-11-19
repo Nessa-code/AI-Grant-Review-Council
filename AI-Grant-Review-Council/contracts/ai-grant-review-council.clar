@@ -178,3 +178,98 @@
         (ok true)
     )
 )
+
+;; Update proposal status
+(define-public (update-proposal-status (proposal-id uint) (new-status (string-ascii 20)))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { status: new-status })
+        )
+        (ok true)
+    )
+)
+
+;; Add funds to grant pool
+(define-public (add-to-grant-pool (amount uint))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (var-set grant-pool (+ (var-get grant-pool) amount))
+        (ok (var-get grant-pool))
+    )
+)
+
+;; Withdraw from grant pool (owner only)
+(define-public (withdraw-from-pool (amount uint))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (<= amount (var-get grant-pool)) err-insufficient-funds)
+        (var-set grant-pool (- (var-get grant-pool) amount))
+        (ok (var-get grant-pool))
+    )
+)
+
+;; Reject proposal
+(define-public (reject-proposal (proposal-id uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { status: "rejected" })
+        )
+        (ok true)
+    )
+)
+
+;; Approve proposal for review
+(define-public (approve-for-review (proposal-id uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { status: "under-review" })
+        )
+        (ok true)
+    )
+)
+
+;; Close proposal
+(define-public (close-proposal (proposal-id uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { status: "closed" })
+        )
+        (ok true)
+    )
+)
+
+;; Update proposal amount
+(define-public (update-proposal-amount (proposal-id uint) (new-amount uint))
+    (let
+        (
+            (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) err-not-found))
+        )
+        (asserts! (is-eq tx-sender (get applicant proposal)) err-owner-only)
+        (asserts! (is-eq (get status proposal) "pending") err-invalid-status)
+        (map-set proposals
+            { proposal-id: proposal-id }
+            (merge proposal { amount-requested: new-amount })
+        )
+        (ok true)
+    )
+)
